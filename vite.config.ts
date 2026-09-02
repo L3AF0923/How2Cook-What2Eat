@@ -3,5 +3,12 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './'
+  base: './',
+  build: {
+    rolldownOptions: {
+      output: {
+        entryFileNames: 'assets/index.js'
+      }
+    }
+  }
 })

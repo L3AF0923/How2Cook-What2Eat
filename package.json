@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/create-legacy-assets.mjs",
     "test": "vitest run",
     "sync:recipes": "node scripts/import-howtocook.mjs",
     "icon:build": "node scripts/build-icon.mjs",

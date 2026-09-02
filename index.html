@@ -13,6 +13,13 @@
     <link rel="icon" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
     <title>How2Cook?&amp;What2Eat? V0.3</title>
+    <script>
+      if ('serviceWorker' in navigator && !navigator.userAgent.includes('Electron')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch((error) => console.warn('Service worker registration failed:', error))
+        })
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

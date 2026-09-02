@@ -1,4 +1,4 @@
-const CACHE_NAME = 'how2cook-what2eat-v0.3'
+const CACHE_NAME = 'how2cook-what2eat-v0.3.1'
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -18,17 +18,20 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url)
   if (requestUrl.origin !== self.location.origin) return
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request).then((response) => {
-        if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()))
-        return response
-      })
-      if (cached) {
-        event.waitUntil(network.catch(() => undefined))
-        return cached
-      }
-      return network.catch(() => caches.match('./index.html'))
-    })
-  )
+  const networkAndCache = () => fetch(event.request, { cache: 'no-store' }).then((response) => {
+    if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()))
+    return response
+  })
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkAndCache().catch(() => caches.match('./index.html')))
+    return
+  }
+
+  if (['script', 'style', 'worker'].includes(event.request.destination)) {
+    event.respondWith(networkAndCache().catch(() => caches.match(event.request)))
+    return
+  }
+
+  event.respondWith(caches.match(event.request).then((cached) => cached || networkAndCache()))
 })
