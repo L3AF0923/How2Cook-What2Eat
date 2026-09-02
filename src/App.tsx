@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Bookmark, BookmarkCheck, Check, ChefHat, ChevronDown, ClipboardCopy, Clock3, ExternalLink, Flame, Heart, History, Minus, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
-import type { Difficulty, Meal, MealPlan, Preferences, Recipe, Recommendation } from './types'
+import { ArrowRight, Bookmark, BookmarkCheck, Check, ChefHat, ChevronDown, ClipboardCopy, Clock3, ExternalLink, Flame, Heart, History, Minus, Play, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
+import type { CookingProgress, Difficulty, Meal, MealPlan, Preferences, Recipe, Recommendation } from './types'
 import { defaultPreferences, formatIngredientAmount, generateMealPlans, parseQuery, replaceDishInMealPlan } from './lib/recommender'
 import { buildShoppingList, shoppingListToText } from './lib/shopping'
 import { builtInRecipes } from './data/all-recipes'
 import RecipeAdmin from './components/RecipeAdmin'
+import CookingMode from './components/CookingMode'
+import { createCookingProgress } from './lib/cooking'
 
 const starters = ['一人份快速午餐', '两个人的清淡晚餐', '用鸡蛋和西红柿做饭', '新手也能做的早餐']
 const storage = {
@@ -77,7 +79,8 @@ function RecipeModal({ recipe, people, onClose }: { recipe: Recipe; people: numb
   </div></div>
 }
 
-function PlanCard({ plan, people, favorites, replacingKey, onFavorite, onRecipe, onReplace, onPlan, compact = false }: { plan: MealPlan; people: number; favorites: string[]; replacingKey: string | null; onFavorite: (id: string) => void; onRecipe: (recipe: Recipe) => void; onReplace: (plan: MealPlan, recipeId: string) => void; onPlan: () => void; compact?: boolean }) {
+function PlanCard({ plan, people, favorites, replacingKey, cookingProgress, onFavorite, onRecipe, onReplace, onPlan, onCook, compact = false }: { plan: MealPlan; people: number; favorites: string[]; replacingKey: string | null; cookingProgress: CookingProgress | null; onFavorite: (id: string) => void; onRecipe: (recipe: Recipe) => void; onReplace: (plan: MealPlan, recipeId: string) => void; onPlan: () => void; onCook: () => void; compact?: boolean }) {
+  const canContinue = cookingProgress?.plan.id === plan.id && cookingProgress.completedRecipeIds.length < plan.dishes.length
   return <article className={compact ? 'plan-card compact' : 'plan-card'}>
     <div className="plan-head"><div><span className="eyebrow">{compact ? '另一桌选择' : '今日整桌推荐'}</span><h3>{plan.title}</h3></div><span className="plan-time"><Clock3 /> 约 {plan.estimatedMinutes} 分钟</span></div>
     <p className="plan-summary">{plan.summary}</p>
@@ -86,7 +89,7 @@ function PlanCard({ plan, people, favorites, replacingKey, onFavorite, onRecipe,
       <button className="dish-main" onClick={() => onRecipe(dish.recipe)}><span className={`role role-${dish.role}`}>{dish.role}</span><span><b>{dish.recipe.name}</b><small>{dish.protein} · {dish.method} · {dish.recipe.minutes} 分钟</small></span></button>
       <div className="dish-actions"><button className="replace-dish" onClick={() => onReplace(plan, dish.recipe.id)} disabled={replacing} aria-label={`更换${dish.recipe.name}`} title="换一道"><RotateCcw /> <span>{replacing ? '更换中' : '换一道'}</span></button><button className="favorite" onClick={() => onFavorite(dish.recipe.id)} title="收藏">{favorites.includes(dish.recipe.id) ? <BookmarkCheck /> : <Bookmark />}</button></div>
     </div> })}</div>
-    <button className="plan-detail" onClick={onPlan}><ShoppingBasket /> 查看食材清单与下厨顺序 <ArrowRight /></button>
+    <div className="plan-footer-actions"><button className="start-cooking" onClick={onCook}><Play />{canContinue ? '继续做饭' : '开始做饭'}</button><button className="plan-detail" onClick={onPlan}><ShoppingBasket /> 查看食材清单与下厨顺序 <ArrowRight /></button></div>
   </article>
 }
 
@@ -143,6 +146,8 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [replacingKey, setReplacingKey] = useState<string | null>(null)
+  const [cookingProgress, setCookingProgress] = useState<CookingProgress | null>(() => storage.get<CookingProgress | null>('wtet.cooking-progress', null))
+  const [cookingOpen, setCookingOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
   const replacementTimer = useRef<number | null>(null)
 
@@ -152,6 +157,7 @@ export default function App() {
   useEffect(() => storage.set('wtet.recent-recipes', recentRecipes), [recentRecipes])
   useEffect(() => storage.set('wtet.recipe-overrides', recipeOverrides), [recipeOverrides])
   useEffect(() => storage.set('wtet.deleted-recipes', deletedRecipes), [deletedRecipes])
+  useEffect(() => { if (cookingProgress) storage.set('wtet.cooking-progress', cookingProgress) }, [cookingProgress])
   useEffect(() => {
     const closeHistory = (event: PointerEvent) => {
       if (historyRef.current && !historyRef.current.contains(event.target as Node)) setHistoryOpen(false)
@@ -210,8 +216,17 @@ export default function App() {
     }, 220)
   }
 
+  const openCooking = (plan: MealPlan) => {
+    setCookingProgress((current) => current?.plan.id === plan.id && current.completedRecipeIds.length < current.plan.dishes.length ? current : createCookingProgress(plan))
+    setSelectedPlan(null)
+    setSelected(null)
+    setCookingOpen(true)
+  }
+
+  if (cookingOpen && cookingProgress) return <CookingMode progress={cookingProgress} onChange={setCookingProgress} onExit={() => setCookingOpen(false)} />
+
   return <div className="app-shell">
-    <header><a className="brand" href="#"><span><ChefHat /></span><div><b>今天吃什么</b><small>认真解决每一顿</small></div></a><nav><button onClick={() => setAdminOpen(true)}><Settings size={18} /> 管理</button><button onClick={() => setShowSaved(!showSaved)} className={showSaved ? 'active' : ''}><Bookmark size={18} /> 收藏 <i>{favorites.length}</i></button><div className={historyOpen ? 'history-menu open' : 'history-menu'} ref={historyRef}><button className="history-button" onClick={() => setHistoryOpen((open) => !open)} aria-expanded={historyOpen} aria-controls="history-popover" aria-haspopup="menu"><History size={18} /> 历史</button><div className="history-popover" id="history-popover" role="menu">{history.length ? history.map((x) => <button role="menuitem" key={x} onClick={() => { setQuery(x); ask(x); setHistoryOpen(false) }}>{x}</button>) : <em>还没有搜索记录</em>}</div></div></nav></header>
+    <header><a className="brand" href="#"><span><ChefHat /></span><div><b>今天吃什么</b><small>认真解决每一顿</small></div></a><nav>{cookingProgress && cookingProgress.completedRecipeIds.length < cookingProgress.plan.dishes.length && <button className="cooking-resume" onClick={() => setCookingOpen(true)}><Play size={18} /> 继续做饭</button>}<button onClick={() => setAdminOpen(true)}><Settings size={18} /> 管理</button><button onClick={() => setShowSaved(!showSaved)} className={showSaved ? 'active' : ''}><Bookmark size={18} /> 收藏 <i>{favorites.length}</i></button><div className={historyOpen ? 'history-menu open' : 'history-menu'} ref={historyRef}><button className="history-button" onClick={() => setHistoryOpen((open) => !open)} aria-expanded={historyOpen} aria-controls="history-popover" aria-haspopup="menu"><History size={18} /> 历史</button><div className="history-popover" id="history-popover" role="menu">{history.length ? history.map((x) => <button role="menuitem" key={x} onClick={() => { setQuery(x); ask(x); setHistoryOpen(false) }}>{x}</button>) : <em>还没有搜索记录</em>}</div></div></nav></header>
     <main>
       <button className="mobile-filter" onClick={() => setFiltersOpen(!filtersOpen)}>调整用餐偏好 <ChevronDown /></button>
       <div className={filtersOpen ? 'filter-wrap open' : 'filter-wrap'}><Filters value={preferences} onChange={setPreferences} /></div>
@@ -221,7 +236,7 @@ export default function App() {
           <div className="ask-box"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask()} placeholder="例如：帮我推荐一人份的快速午餐" /><button onClick={() => ask()}>帮我想想 <ArrowRight /></button></div>
           <div className="starters">{starters.map((x) => <button key={x} onClick={() => ask(x)}>{x}</button>)}</div>
           <div className="result-heading"><div><span className="eyebrow">为你推荐</span><h2>{lastQuery}</h2></div><button className="reroll" onClick={reroll}><RotateCcw /> 换一批</button></div>
-          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} replacingKey={replacingKey} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(results[0])} /><div className="plan-alternatives">{results.slice(1).map((plan, index) => <PlanCard key={`${plan.id}-${index}`} plan={plan} people={preferences.people} favorites={favorites} replacingKey={replacingKey} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(plan)} compact />)}</div></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}
+          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} replacingKey={replacingKey} cookingProgress={cookingProgress} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(results[0])} onCook={() => openCooking(results[0])} /><div className="plan-alternatives">{results.slice(1).map((plan, index) => <PlanCard key={`${plan.id}-${index}`} plan={plan} people={preferences.people} favorites={favorites} replacingKey={replacingKey} cookingProgress={cookingProgress} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(plan)} onCook={() => openCooking(plan)} compact />)}</div></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}
         </>}
       </section>
     </main>

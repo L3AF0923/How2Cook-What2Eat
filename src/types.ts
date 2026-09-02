@@ -69,3 +69,25 @@ export interface MealPlan {
   reasons: string[]
   cookingOrder: string[]
 }
+
+export type CookingTimerStatus = 'running' | 'paused' | 'finished'
+
+export interface CookingTimerState {
+  id: string
+  recipeId: string
+  stepIndex: number
+  label: string
+  durationMs: number
+  status: CookingTimerStatus
+  targetEndAt: number | null
+  remainingMs: number
+}
+
+export interface CookingProgress {
+  plan: MealPlan
+  activeRecipeId: string
+  stepByRecipe: Record<string, number>
+  completedRecipeIds: string[]
+  timers: CookingTimerState[]
+  updatedAt: number
+}

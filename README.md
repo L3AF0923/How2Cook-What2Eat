@@ -39,10 +39,13 @@ npm test
 - 响应式手机与桌面布局
 - 可安装到 Android、iPhone/iPad 和桌面的 PWA
 - 首次在线打开后缓存应用文件，可离线启动并使用内置菜谱
+- V0.5 做饭模式：逐道、逐步显示大字号操作，保存当前菜、步骤和完成状态
+- 自动识别步骤中的明确秒、分钟和小时时间，支持多个准确倒计时同时运行、暂停、继续与重置
+- 退出或刷新后可继续做饭；运行中的倒计时根据目标时间恢复，不因切换菜品或标签页而重置
 
 ## 移动端网页版（PWA）
 
-V0.4 支持移动端 PWA。仓库已包含 PWA 清单、应用图标、Service Worker 和 GitHub Pages 自动部署流程。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages** 中将 Source 设置为 **GitHub Actions**，工作流会生成可供手机访问的 HTTPS 地址。
+V0.5 支持移动端 PWA。仓库已包含 PWA 清单、应用图标、Service Worker 和 GitHub Pages 自动部署流程。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages** 中将 Source 设置为 **GitHub Actions**，工作流会生成可供手机访问的 HTTPS 地址。
 
 手机打开部署地址后：
 
@@ -61,10 +64,10 @@ HowToCook 使用 Unlicense。食物过敏筛选只能作为辅助，实际食用
 
 ## Windows 桌面版
 
-V0.4 可构建两种 64 位 Windows 程序：
+V0.5 可构建两种 64 位 Windows 程序：
 
-- `How2Cook&What2Eat_V0.4_Setup_x64.exe`：安装版，可选择安装位置并创建快捷方式。
-- `How2Cook&What2Eat_V0.4_Portable_x64.exe`：便携版，无需安装即可运行。
+- `How2Cook&What2Eat_V0.5_Setup_x64.exe`：安装版，可选择安装位置并创建快捷方式。
+- `How2Cook&What2Eat_V0.5_Portable_x64.exe`：便携版，无需安装即可运行。
 
 应用界面和文件描述使用完整名称 `How2Cook?&What2Eat?`。由于 Windows 文件名不允许包含问号，EXE 文件名省略了 `?`。
 

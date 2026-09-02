@@ -4,7 +4,7 @@
   "description": "How2Cook?&What2Eat? — 本地智能菜谱与菜单推荐应用",
   "author": "How2Cook & What2Eat",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -15,8 +15,8 @@
     "icon:build": "node scripts/build-icon.mjs",
     "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "desktop:build": "npm run icon:build && npm run build && npm run desktop:build:installer && npm run desktop:build:portable",
-    "desktop:build:installer": "electron-builder --win nsis --config.win.artifactName=How2Cook^&What2Eat_V0.4_Setup_${arch}.${ext}",
-    "desktop:build:portable": "electron-builder --win portable --config.win.artifactName=How2Cook^&What2Eat_V0.4_Portable_${arch}.${ext}"
+    "desktop:build:installer": "electron-builder --win nsis --config.win.artifactName=How2Cook^&What2Eat_V0.5_Setup_${arch}.${ext}",
+    "desktop:build:portable": "electron-builder --win portable --config.win.artifactName=How2Cook^&What2Eat_V0.5_Portable_${arch}.${ext}"
   },
   "devDependencies": {
     "@types/react": "latest",
@@ -38,7 +38,7 @@
   "build": {
     "appId": "com.how2cook.what2eat",
     "productName": "How2Cook & What2Eat",
-    "copyright": "How2Cook?&What2Eat? V0.4",
+    "copyright": "How2Cook?&What2Eat? V0.5",
     "asar": true,
     "directories": {
       "output": "release",
