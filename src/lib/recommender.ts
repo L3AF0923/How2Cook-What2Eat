@@ -1,5 +1,5 @@
 import { builtInRecipes } from '../data/all-recipes'
-import type { DishRole, MealPlan, PlannedDish, Preferences, Recipe, Recommendation } from '../types'
+import type { DishRole, Ingredient, MealPlan, PlannedDish, Preferences, Recipe, Recommendation } from '../types'
 
 export const defaultPreferences: Preferences = {
   people: 1, meal: '不限', maxMinutes: 30, difficulty: '不限', avoid: [], allergies: [], pantry: [], vegetarian: false, noSpicy: false, feast: false,
@@ -92,6 +92,14 @@ export function formatAmount(amount: number, baseServings: number, people: numbe
   const value = amount * people / baseServings
   if (unit === '个' || unit === '根' || unit === '瓣') return `${Math.max(1, Math.round(value * 2) / 2)}${unit}`
   return `${value < 10 ? Math.round(value * 10) / 10 : Math.round(value)}${unit}`
+}
+
+export function formatIngredientAmount(ingredient: Ingredient, baseServings: number, people: number) {
+  if (ingredient.scalable === false || !ingredient.amount || !ingredient.unit) return ingredient.originalAmount || '适量'
+  const scaled = formatAmount(ingredient.amount, baseServings, people, ingredient.unit)
+  if (!ingredient.originalAmount) return scaled
+  if (people === baseServings) return ingredient.originalAmount
+  return `${ingredient.originalAmount}（按当前人数约 ${scaled}）`
 }
 
 export function dishProfile(recipe: Recipe): { role: DishRole; protein: string; method: string } {

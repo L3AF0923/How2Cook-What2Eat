@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPreferences, dishProfile, formatAmount, generateMealPlan, generateMealPlans, parseQuery, recommend } from './recommender'
+import { defaultPreferences, dishProfile, formatAmount, formatIngredientAmount, generateMealPlan, generateMealPlans, parseQuery, recommend } from './recommender'
 import { recipes } from '../data/recipes'
 import { builtInRecipes } from '../data/all-recipes'
 
@@ -36,6 +36,14 @@ describe('query parser', () => {
       expect(plan.dishes.filter((dish) => dish.role === '汤')).toHaveLength(1)
       expect(plan.dishes.filter((dish) => dish.role === '主食')).toHaveLength(0)
     }
+  })
+})
+
+describe('ingredient amount display', () => {
+  it('preserves HowToCook ranges and notes', () => {
+    expect(formatIngredientAmount({ name: '豆瓣酱', amount: 30, unit: 'g', scalable: false, originalAmount: '30-50 g' }, 2, 1)).toBe('30-50 g')
+    expect(formatIngredientAmount({ name: '螃蟹', amount: 500, unit: 'g', scalable: true, originalAmount: '500 g（约 3-4 只中等河蟹）' }, 2, 2)).toBe('500 g（约 3-4 只中等河蟹）')
+    expect(formatIngredientAmount({ name: '螃蟹', amount: 500, unit: 'g', scalable: true, originalAmount: '500 g（约 3-4 只中等河蟹）' }, 2, 1)).toContain('按当前人数约 250g')
   })
 })
 

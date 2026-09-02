@@ -9,12 +9,12 @@ const blankRecipe = (): Recipe => ({
 })
 
 function ingredientsToText(items: Ingredient[]) {
-  return items.map((item) => `${item.name} | ${item.amount} | ${item.unit}${item.optional ? ' | 可选' : ''}`).join('\n')
+  return items.map((item) => `${item.name} | ${item.amount} | ${item.unit} | ${item.optional ? '可选' : ''} | ${item.originalAmount || ''} | ${item.scalable === false ? '固定' : ''}`).join('\n')
 }
 function textToIngredients(text: string): Ingredient[] {
   return text.split(/\r?\n/).map((line) => {
-    const [name, amount, unit, optional] = line.split('|').map((x) => x.trim())
-    return { name, amount: Number(amount) || 1, unit: unit || '份', optional: optional === '可选' }
+    const [name, amount, unit, optional, originalAmount, scaleMode] = line.split('|').map((x) => x.trim())
+    return { name, amount: Number(amount) || 0, unit: unit || '', optional: optional === '可选', originalAmount: originalAmount || undefined, scalable: scaleMode !== '固定' }
   }).filter((item) => item.name)
 }
 
@@ -45,7 +45,7 @@ export default function RecipeAdmin({ recipes, onSave, onDelete, onReset, onClos
         <label>适用餐次<select value={editing.meals[0] || '不限'} onChange={(e) => set('meals', e.target.value === '不限' ? ['不限'] : [e.target.value as Meal])}><option>不限</option><option>早餐</option><option>午餐</option><option>晚餐</option></select></label>
       </div>
       <label>简介<textarea value={editing.description} onChange={(e) => set('description', e.target.value)} rows={3} /></label>
-      <label>食材清单 <small>每行：名称 | 数量 | 单位 | 可选</small><textarea value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} rows={8} placeholder={'牛肉 | 300 | g\n生抽 | 10 | ml'} /></label>
+      <label>食材清单 <small>每行：名称 | 数量 | 单位 | 可选 | 原始用量 | 固定</small><textarea value={ingredientsText} onChange={(e) => setIngredientsText(e.target.value)} rows={8} placeholder={'牛肉 | 300 | g\n豆瓣酱 | 30 | g | | 30-50 g | 固定'} /></label>
       <label>操作步骤 <small>每行一个步骤</small><textarea value={stepsText} onChange={(e) => setStepsText(e.target.value)} rows={9} /></label>
       <label>原始来源链接<input value={editing.source} onChange={(e) => set('source', e.target.value)} /></label>
       <button className="save-recipe" onClick={save}>保存菜谱</button>

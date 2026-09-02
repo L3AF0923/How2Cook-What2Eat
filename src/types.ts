@@ -7,6 +7,7 @@ export interface Ingredient {
   unit: string
   scalable?: boolean
   optional?: boolean
+  originalAmount?: string
 }
 
 export interface Recipe {

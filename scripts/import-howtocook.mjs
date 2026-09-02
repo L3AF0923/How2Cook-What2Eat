@@ -36,12 +36,20 @@ function parseIngredient(line) {
   value = value.replace(/\[[^\]]+\]\([^)]*\)/g, '').replace(/（[^）]*(?:可选|品牌)[^）]*）/g, '').trim()
   if (!value || value.startsWith('注意') || value.length > 80) return null
   const optional = /可选|按需/.test(line)
-  const amountMatch = value.match(/(?:约|大约)?\s*(\d+(?:\.\d+)?)\s*(g|kg|克|千克|ml|mL|毫升|升|个|只|颗|根|瓣|片|勺|茶匙|汤匙|份|包|块|碗|杯)/i)
+  const amountMatch = value.match(/(?:约|大约)?\s*(\d+(?:\.\d+)?)(?:\s*[-~～至到]\s*(\d+(?:\.\d+)?))?\s*(g|kg|克|千克|ml|mL|毫升|升|个|只|颗|粒|根|株|段|瓣|片|勺|茶匙|汤匙|份|袋|盒|包|块|碗|杯|把|双)/i)
   let name = amountMatch ? value.slice(0, amountMatch.index).replace(/[：:\s]+$/, '') : value.split(/[（(：:]/)[0].trim()
   name = name.replace(/适量|少量|若干|可选/g, '').trim()
   if (!name || name.length > 24) return null
   const unitMap = { 克: 'g', 千克: 'kg', 毫升: 'ml', mL: 'ml' }
-  return { name, amount: amountMatch ? Number(amountMatch[1]) : 1, unit: amountMatch ? (unitMap[amountMatch[2]] || amountMatch[2].toLowerCase()) : '份', optional }
+  const originalAmount = amountMatch ? value.slice(amountMatch.index).trim() : value.slice(name.length).replace(/^[：:\s]+/, '').trim()
+  return {
+    name,
+    amount: amountMatch ? Number(amountMatch[1]) : 0,
+    unit: amountMatch ? (unitMap[amountMatch[3]] || amountMatch[3].toLowerCase()) : '',
+    scalable: Boolean(amountMatch) && !amountMatch[2],
+    optional,
+    originalAmount: originalAmount || '适量'
+  }
 }
 
 function inferTags(name, category, text) {
@@ -70,9 +78,11 @@ function parseRecipe(file, markdown) {
   const heading = clean(markdown).match(/^#\s+(.+?)(?:的做法)?\s*$/m)?.[1]?.trim()
   const name = (heading || fallbackName).replace(/的做法$/, '').trim()
   if (!name || name === '示例菜') return null
-  const calculation = section(markdown, ['计算', '原料'])
+  const calculation = section(markdown, ['计算'])
   const required = section(markdown, ['必备原料', '原料和工具', '食材'])
-  const ingredientLines = `${calculation}\n${required}`.split(/\r?\n/).filter((line) => /^\s*[-*+]\s+/.test(line))
+  const calculationLines = calculation.split(/\r?\n/).filter((line) => /^\s*[-*+]\s+/.test(line))
+  const requiredLines = required.split(/\r?\n/).filter((line) => /^\s*[-*+]\s+/.test(line))
+  const ingredientLines = calculationLines.length ? calculationLines : requiredLines
   const ingredientMap = new Map()
   for (const line of ingredientLines) {
     const item = parseIngredient(line)

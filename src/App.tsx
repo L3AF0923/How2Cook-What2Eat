@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Bookmark, BookmarkCheck, ChefHat, ChevronDown, Clock3, ExternalLink, Flame, Heart, History, Minus, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
 import type { Difficulty, Meal, MealPlan, Preferences, Recipe, Recommendation } from './types'
-import { defaultPreferences, formatAmount, generateMealPlans, parseQuery } from './lib/recommender'
+import { defaultPreferences, formatIngredientAmount, generateMealPlans, parseQuery } from './lib/recommender'
 import { builtInRecipes } from './data/all-recipes'
 import RecipeAdmin from './components/RecipeAdmin'
 
@@ -54,7 +54,7 @@ function RecipeModal({ recipe, people, onClose }: { recipe: Recipe; people: numb
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="modal">
     <button className="modal-close" onClick={onClose}><X /></button>
     <div className="modal-hero"><span className="eyebrow">{recipe.category} · {recipe.difficulty}</span><h2>{recipe.name}</h2><p>{recipe.description}</p><div className="meta"><span><Clock3 /> {recipe.minutes} 分钟</span><span><Users /> {people} 人份</span>{recipe.calories && <span><Flame /> 约 {Math.round(recipe.calories * people / recipe.servings)} 千卡</span>}</div></div>
-    <section><div className="section-title"><ShoppingBasket /><div><span>准备好这些</span><h3>食材清单</h3></div></div><div className="ingredient-list">{recipe.ingredients.map((x) => <div key={x.name}><span>{x.name}{x.optional && <em>可选</em>}</span><b>{formatAmount(x.amount, recipe.servings, people, x.unit)}</b></div>)}</div><p className="scale-note">已按 {people} 人份换算；个数类食材取便于购买和烹饪的近似值。</p></section>
+    <section><div className="section-title"><ShoppingBasket /><div><span>准备好这些</span><h3>食材清单</h3></div></div><div className="ingredient-list">{recipe.ingredients.map((x) => <div key={x.name}><span>{x.name}{x.optional && <em>可选</em>}</span><b>{formatIngredientAmount(x, recipe.servings, people)}</b></div>)}</div><p className="scale-note">明确的单一用量会按 {people} 人份换算；区间、适量及原菜谱备注保留 HowToCook 原始写法。</p></section>
     <section><div className="section-title"><ChefHat /><div><span>跟着步骤来</span><h3>开始烹饪</h3></div></div><ol className="steps">{recipe.steps.map((x, i) => <li key={x}><b>{String(i + 1).padStart(2, '0')}</b><p>{x}</p></li>)}</ol></section>
     <section className="tips"><h3>下厨提示</h3>{recipe.tips.map((x) => <p key={x}>— {x}</p>)}</section>
     <a className="source" href={recipe.source} target="_blank" rel="noreferrer">查看 HowToCook 原始菜谱 <ExternalLink size={15} /></a>
@@ -75,17 +75,18 @@ function PlanCard({ plan, people, favorites, onFavorite, onRecipe, onPlan, compa
 }
 
 function PlanModal({ plan, people, onRecipe, onClose }: { plan: MealPlan; people: number; onRecipe: (recipe: Recipe) => void; onClose: () => void }) {
-  const shopping = new Map<string, { name: string; amount: number; unit: string; optional: boolean }>()
+  const shopping = new Map<string, { name: string; amount: number; unit: string; optional: boolean; originalAmount?: string }>()
   plan.dishes.forEach(({ recipe }) => recipe.ingredients.forEach((item) => {
-    const key = `${item.name}-${item.unit}`
+    const isOriginal = item.scalable === false || !item.amount || !item.unit
+    const key = isOriginal ? `${item.name}-原始-${item.originalAmount}` : `${item.name}-${item.unit}`
     const scaled = item.amount * people / recipe.servings
     const old = shopping.get(key)
-    shopping.set(key, { name: item.name, amount: (old?.amount || 0) + scaled, unit: item.unit, optional: Boolean(item.optional && (old?.optional ?? true)) })
+    shopping.set(key, { name: item.name, amount: isOriginal ? 0 : (old?.amount || 0) + scaled, unit: item.unit, optional: Boolean(item.optional && (old?.optional ?? true)), originalAmount: isOriginal ? item.originalAmount || '适量' : undefined })
   }))
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="modal plan-modal">
     <button className="modal-close" onClick={onClose}><X /></button>
     <div className="modal-hero"><span className="eyebrow">整套餐单</span><h2>{plan.title}</h2><p>{plan.summary}</p><div className="meta"><span><Clock3 /> 约 {plan.estimatedMinutes} 分钟</span><span><Users /> {people} 人</span><span><ChefHat /> {plan.dishes.length} 个菜品</span></div></div>
-    <section><div className="section-title"><ShoppingBasket /><div><span>本桌所需</span><h3>食材清单</h3></div></div><div className="ingredient-list">{[...shopping.values()].map((x) => <div key={`${x.name}-${x.unit}`}><span>{x.name}{x.optional && <em>可选</em>}</span><b>{x.unit === '个' || x.unit === '根' || x.unit === '瓣' ? `${Math.max(1, Math.round(x.amount * 2) / 2)}${x.unit}` : `${x.amount < 10 ? Math.round(x.amount * 10) / 10 : Math.round(x.amount)}${x.unit}`}</b></div>)}</div></section>
+    <section><div className="section-title"><ShoppingBasket /><div><span>本桌所需</span><h3>食材清单</h3></div></div><div className="ingredient-list">{[...shopping.values()].map((x) => <div key={`${x.name}-${x.unit}-${x.originalAmount || ''}`}><span>{x.name}{x.optional && <em>可选</em>}</span><b>{x.originalAmount || (x.unit === '个' || x.unit === '根' || x.unit === '瓣' ? `${Math.max(1, Math.round(x.amount * 2) / 2)}${x.unit}` : `${x.amount < 10 ? Math.round(x.amount * 10) / 10 : Math.round(x.amount)}${x.unit}`)}</b></div>)}</div><p className="scale-note">同单位的明确用量已合并；区间、适量及备注保留原菜谱写法。</p></section>
     <section><div className="section-title"><Clock3 /><div><span>少忙乱，更快上桌</span><h3>建议下厨顺序</h3></div></div><ol className="steps">{plan.cookingOrder.map((x, i) => <li key={x}><b>{String(i + 1).padStart(2, '0')}</b><p>{x}</p></li>)}</ol></section>
     <section><div className="section-title"><ChefHat /><div><span>逐道查看</span><h3>本桌菜单</h3></div></div><div className="modal-dishes">{plan.dishes.map((dish) => <button key={dish.recipe.id} onClick={() => onRecipe(dish.recipe)}><span className={`role role-${dish.role}`}>{dish.role}</span><b>{dish.recipe.name}</b><ArrowRight /></button>)}</div></section>
   </div></div>
