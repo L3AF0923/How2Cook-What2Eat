@@ -1,0 +1,33 @@
+.menu-structure {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.structure-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.structure-title .field-title { margin: 0; }
+.structure-title > button {
+  border: 0;
+  background: transparent;
+  color: var(--orange);
+  font-size: 9px;
+  padding: 4px;
+}
+.structure-title > button.active { color: var(--green); }
+
+.structure-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 11px;
+  color: #69655b;
+}
+
+.structure-row .stepper b { min-width: 31px; }
+.structure-row .stepper button { width: 27px; height: 27px; }

@@ -1,0 +1,90 @@
+# How2Cook?&What2Eat?
+
+一个基于 [HowToCook](https://github.com/Anduin2017/HowToCook) 菜谱内容制作的开源餐食推荐应用。输入人数、餐次、时间、忌口或手边食材，即可获得带食材用量和完整步骤的推荐。支持浏览器、可安装的移动端 PWA 和 Windows 桌面版。
+
+## 本地运行
+
+```bash
+npm install
+npm run dev
+```
+
+打开终端显示的本地地址即可。构建生产版本：
+
+```bash
+npm run build
+```
+
+运行测试：
+
+```bash
+npm test
+```
+
+## 当前功能
+
+- 自然语言识别人数、餐次、最长用时、难度、忌口和已有食材
+- 调整人数、餐次、时长等筛选条件后自动同步推荐，搜索框留空也可直接推荐
+- 可通过自然语言或左侧“菜单结构”严格指定荤菜、素菜、汤品和主食数量
+- 严格排除用户填写的过敏原
+- 按人数生成整套餐单：一人食 1～2 道，7～8 人为六菜一汤
+- 根据鱼、虾、鸡、猪、牛、蔬菜、汤和烹饪方式进行搭配
+- 加权随机抽样、近期推荐冷却和换一批去重
+- 按人数换算食材用量
+- 合并整桌食材清单（包含调料用量），并给出建议下厨顺序
+- 一人食既可推荐快手主食，也可按人数换算辣椒炒肉、鸡翅、牛肉等家常菜
+- 完整食材、步骤、提示与原始菜谱链接
+- 收藏、历史和偏好保存在本机浏览器
+- 响应式手机与桌面布局
+- 可安装到 Android、iPhone/iPad 和桌面的 PWA
+- 首次在线打开后缓存应用文件，可离线启动并使用内置菜谱
+
+## 移动端网页版（PWA）
+
+V0.3 新增移动端 PWA。仓库已包含 PWA 清单、应用图标、Service Worker 和 GitHub Pages 自动部署流程。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages** 中将 Source 设置为 **GitHub Actions**，工作流会生成可供手机访问的 HTTPS 地址。
+
+手机打开部署地址后：
+
+- Android Chrome：菜单 → “添加到主屏幕”或“安装应用”。
+- iPhone/iPad Safari：分享 → “添加到主屏幕”。
+
+用户的偏好、收藏和浏览器管理的菜谱修改保存在当前设备的浏览器存储中，不会自动同步到其他设备。
+
+## 数据说明
+
+应用已导入 HowToCook 全量正式菜谱。运行 `npm run sync:recipes` 可从 `vendor/HowToCook` 重新扫描上游 Markdown 并生成统一数据文件。每条菜谱均保留 HowToCook 来源链接。
+
+页面顶部的“管理”入口支持在浏览器中搜索、添加、编辑和删除菜谱。管理操作保存在浏览器本地；点击“恢复内置”可清除本地修改并恢复导入版本。
+
+HowToCook 使用 Unlicense。食物过敏筛选只能作为辅助，实际食用前仍应核对食材和包装配料表。
+
+## Windows 桌面版
+
+V0.2 提供两种 64 位 Windows 程序：
+
+- `How2Cook&What2Eat_V0.2_Setup_x64.exe`：安装版，可选择安装位置并创建快捷方式。
+- `How2Cook&What2Eat_V0.2_Portable_x64.exe`：便携版，无需安装即可运行。
+
+应用界面和文件描述使用完整名称 `How2Cook?&What2Eat?`。由于 Windows 文件名不允许包含问号，EXE 文件名省略了 `?`。
+
+桌面开发模式与打包命令：
+
+```bash
+npm run desktop:dev
+npm run desktop:build
+```
+
+桌面版无需另外启动网页服务，数据和页面均包含在程序内；菜谱的 GitHub 来源链接会交给系统默认浏览器打开。
+
+## 开源与贡献
+
+应用源代码采用 [MIT License](./LICENSE)。导入的 HowToCook 菜谱内容及其他第三方材料说明见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+
+提交代码前请运行：
+
+```bash
+npm test
+npm run build
+```
+
+Windows EXE 属于构建产物，不提交到 Git 仓库；请将安装版和便携版上传到 GitHub Releases。

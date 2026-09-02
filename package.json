@@ -1,0 +1,65 @@
+{
+  "name": "how2cook-and-what2eat",
+  "productName": "How2Cook & What2Eat",
+  "description": "How2Cook?&What2Eat? — 本地智能菜谱与菜单推荐应用",
+  "author": "How2Cook & What2Eat",
+  "private": true,
+  "version": "0.3.0",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "sync:recipes": "node scripts/import-howtocook.mjs",
+    "icon:build": "node scripts/build-icon.mjs",
+    "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "desktop:build": "npm run icon:build && npm run build && npm run desktop:build:installer && npm run desktop:build:portable",
+    "desktop:build:installer": "electron-builder --win nsis --config.win.artifactName=How2Cook^&What2Eat_V0.3_Setup_${arch}.${ext}",
+    "desktop:build:portable": "electron-builder --win portable --config.win.artifactName=How2Cook^&What2Eat_V0.3_Portable_${arch}.${ext}"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.2.6",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "lucide-react": "latest",
+    "png-to-ico": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "sharp": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest",
+    "wait-on": "latest"
+  },
+  "build": {
+    "appId": "com.how2cook.what2eat",
+    "productName": "How2Cook & What2Eat",
+    "copyright": "How2Cook?&What2Eat? V0.3",
+    "asar": true,
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "win": {
+      "icon": "build/icon.ico",
+      "executableName": "How2Cook&What2Eat",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "How2Cook & What2Eat",
+      "installerLanguages": ["zh_CN"]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "How2Cook?&What2Eat? — 今天吃什么",
+  "short_name": "今天吃什么",
+  "description": "根据人数、时间、口味和手边食材，推荐营养搭配合理的一餐。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f1e7",
+  "theme_color": "#365a43",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
