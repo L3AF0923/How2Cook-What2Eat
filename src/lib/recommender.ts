@@ -6,6 +6,36 @@ export const defaultPreferences: Preferences = {
   menuMode: 'auto', meatCount: 0, vegetableCount: 0, soupCount: 0, stapleCount: 0
 }
 
+export interface RecipeSearchMatch {
+  recipe: Recipe
+  kind: 'exact' | 'contained'
+}
+
+const normalizeDishQuery = (query: string) => query
+  .replace(/[，。！？、,.!?\s]/g, '')
+  .replace(/^(?:我)?(?:想吃|想做|要吃|做一道|来一道|帮我找|帮我做|推荐一下|推荐|有没有)/, '')
+  .replace(/(?:怎么做|的做法|菜谱|食谱)$/, '')
+
+export function findRecipeSearchMatch(query: string, catalog: Recipe[] = builtInRecipes): RecipeSearchMatch | null {
+  const normalized = normalizeDishQuery(query)
+  if (normalized.length < 2) return null
+  const searchable = catalog.filter((recipe) => ['主食', '早餐', '素菜', '荤菜', '水产', '汤'].includes(recipe.category))
+  const exact = searchable.find((recipe) => recipe.name === normalized)
+  if (exact) return { recipe: exact, kind: 'exact' }
+  const embedded = searchable
+    .filter((recipe) => query.includes(recipe.name) || recipe.name.includes(normalized))
+    .sort((a, b) => b.name.length - a.name.length)[0]
+  return embedded ? { recipe: embedded, kind: 'contained' } : null
+}
+
+export function recipeSearchConflict(recipe: Recipe, p: Preferences): string | null {
+  if (containsAny(recipe, p.allergies)) return `「${recipe.name}」与当前过敏原设置冲突`
+  if (containsAny(recipe, p.avoid)) return `「${recipe.name}」包含当前忌口食材`
+  if (p.vegetarian && ['荤菜', '水产'].includes(recipe.category)) return `「${recipe.name}」不符合当前素食设置`
+  if (p.noSpicy && recipe.tags.includes('辣')) return `「${recipe.name}」不符合当前不吃辣设置`
+  return null
+}
+
 const splitItems = (value: string) => value.split(/[、，,和\s]+/).map((x) => x.trim()).filter(Boolean)
 const chineseNumber = (value: string) => {
   if (/^\d+$/.test(value)) return Number(value)
@@ -184,12 +214,24 @@ function createMealPlan(p: Preferences, chosen: Recipe[], recent: string[]): Mea
   }
 }
 
-export function generateMealPlan(p: Preferences, recent: string[] = [], seedExcluded: string[] = [], catalog: Recipe[] = builtInRecipes): MealPlan {
+export function generateMealPlan(p: Preferences, recent: string[] = [], seedExcluded: string[] = [], catalog: Recipe[] = builtInRecipes, lockedRecipe?: Recipe): MealPlan {
   const eligible = catalog.filter((recipe) => isAllowed(recipe, p) && !seedExcluded.includes(recipe.id))
   const shape = planShape(p)
-  const chosen: Recipe[] = []
+  if (lockedRecipe) {
+    const lockedRole = dishProfile(lockedRecipe).role
+    if (lockedRole === '主食') shape.staples = Math.max(1, shape.staples)
+    else if (lockedRole === '荤菜') shape.proteins = Math.max(1, shape.proteins)
+    else if (lockedRole === '素菜') shape.vegetables = Math.max(1, shape.vegetables)
+    else shape.soups = Math.max(1, shape.soups)
+  }
+  const chosen: Recipe[] = lockedRecipe ? [lockedRecipe] : []
   const proteins = new Set<string>()
   const methods = new Set<string>()
+  if (lockedRecipe) {
+    const profile = dishProfile(lockedRecipe)
+    proteins.add(profile.protein)
+    methods.add(profile.method)
+  }
   const totalTarget = shape.staples + shape.proteins + shape.vegetables + shape.soups
   for (const pantryItem of p.pantry) {
     if (chosen.length >= totalTarget) break
@@ -252,11 +294,11 @@ export function replaceDishInMealPlan(plan: MealPlan, recipeId: string, p: Prefe
   return createMealPlan(p, nextRecipes, [recipeId, ...recent])
 }
 
-export function generateMealPlans(p: Preferences, recent: string[] = [], count = 3, catalog: Recipe[] = builtInRecipes): MealPlan[] {
+export function generateMealPlans(p: Preferences, recent: string[] = [], count = 3, catalog: Recipe[] = builtInRecipes, lockedRecipe?: Recipe): MealPlan[] {
   const plans: MealPlan[] = []
   for (let i = 0; i < count; i++) {
     const excluded = i === 0 ? [] : plans.flatMap((plan) => plan.dishes.map((x) => x.recipe.id)).slice(-Math.max(2, Math.floor(catalog.length / 3)))
-    plans.push(generateMealPlan(p, recent, excluded, catalog))
+    plans.push(generateMealPlan(p, recent, excluded, catalog, lockedRecipe))
   }
   return plans
 }

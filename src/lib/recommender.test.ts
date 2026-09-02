@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPreferences, dishProfile, formatAmount, formatIngredientAmount, generateMealPlan, generateMealPlans, parseQuery, recommend, replaceDishInMealPlan } from './recommender'
+import { defaultPreferences, dishProfile, findRecipeSearchMatch, formatAmount, formatIngredientAmount, generateMealPlan, generateMealPlans, parseQuery, recipeSearchConflict, recommend, replaceDishInMealPlan } from './recommender'
 import { recipes } from '../data/recipes'
 import { builtInRecipes } from '../data/all-recipes'
 import type { MealPlan, Recipe } from '../types'
@@ -49,6 +49,24 @@ describe('ingredient amount display', () => {
 })
 
 describe('recommender', () => {
+  it('finds a directly entered dish name and conversational dish request', () => {
+    expect(findRecipeSearchMatch('糖醋排骨', builtInRecipes)?.recipe.name).toBe('糖醋排骨')
+    expect(findRecipeSearchMatch('我想吃糖醋排骨', builtInRecipes)?.recipe.name).toBe('糖醋排骨')
+  })
+  it('locks a specifically searched dish into the generated table', () => {
+    const target = findRecipeSearchMatch('糖醋排骨', builtInRecipes)!.recipe
+    const plans = generateMealPlans({ ...defaultPreferences, people: 2, meal: '晚餐' }, [], 1, builtInRecipes, target)
+    expect(plans).toHaveLength(1)
+    expect(plans[0].dishes.some((dish) => dish.recipe.id === target.id)).toBe(true)
+    expect(new Set(plans[0].dishes.map((dish) => dish.recipe.id)).size).toBe(plans[0].dishes.length)
+  })
+  it('reports strict conflicts before locking a searched dish', () => {
+    const target = findRecipeSearchMatch('糖醋排骨', builtInRecipes)!.recipe
+    expect(recipeSearchConflict(target, { ...defaultPreferences, allergies: ['排骨'] })).toContain('过敏原')
+    expect(recipeSearchConflict(target, { ...defaultPreferences, vegetarian: true })).toContain('素食')
+    const spicy = builtInRecipes.find((recipe) => recipe.tags.includes('辣'))!
+    expect(recipeSearchConflict(spicy, { ...defaultPreferences, noSpicy: true })).toContain('不吃辣')
+  })
   it('strictly excludes an allergen', () => {
     const result = recommend({ ...defaultPreferences, allergies: ['鸡蛋'] })
     expect(result.every(({ recipe }) => recipe.ingredients.every((item) => !item.name.includes('鸡蛋')))).toBe(true)

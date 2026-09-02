@@ -2,6 +2,35 @@ body {
   min-width: 0;
 }
 
+.result-area {
+  scroll-margin-top: 18px;
+  border-radius: 26px;
+  transition: background-color .25s, box-shadow .25s;
+}
+
+.result-area.result-feedback {
+  background: #f0e5cf;
+  box-shadow: 0 0 0 10px #f0e5cf;
+}
+
+.ask-box button:disabled {
+  cursor: wait;
+  opacity: .78;
+}
+
+.plan-results {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-area { transition: none; }
+}
+
+@media (max-width: 580px) {
+  .result-area { scroll-margin-top: 80px; }
+  .result-area.result-feedback { box-shadow: 0 0 0 5px #f0e5cf; }
+}
+
 @media (max-width: 580px) {
   .history-button {
     min-width: 44px;

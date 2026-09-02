@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Bookmark, BookmarkCheck, Check, ChefHat, ChevronDown, ClipboardCopy, Clock3, ExternalLink, Flame, Heart, History, Minus, Play, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
 import type { CookingProgress, Difficulty, Meal, MealPlan, Preferences, Recipe, Recommendation } from './types'
-import { defaultPreferences, formatIngredientAmount, generateMealPlans, parseQuery, replaceDishInMealPlan } from './lib/recommender'
+import { defaultPreferences, findRecipeSearchMatch, formatIngredientAmount, generateMealPlans, parseQuery, recipeSearchConflict, replaceDishInMealPlan } from './lib/recommender'
 import { buildShoppingList, shoppingListToText } from './lib/shopping'
 import { builtInRecipes } from './data/all-recipes'
 import RecipeAdmin from './components/RecipeAdmin'
@@ -135,7 +135,7 @@ export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(loadPreferences)
   const [query, setQuery] = useState('')
   const [lastQuery, setLastQuery] = useState('今天吃什么？')
-  const [results, setResults] = useState<MealPlan[]>(() => generateMealPlans(loadPreferences(), storage.get('wtet.recent-recipes', []), 3, builtInRecipes))
+  const [results, setResults] = useState<MealPlan[]>(() => generateMealPlans(loadPreferences(), storage.get('wtet.recent-recipes', []), 1, builtInRecipes))
   const [recentRecipes, setRecentRecipes] = useState<string[]>(() => storage.get('wtet.recent-recipes', []))
   const [favorites, setFavorites] = useState<string[]>(() => storage.get('wtet.favorites', []))
   const [history, setHistory] = useState<string[]>(() => storage.get('wtet.history', []))
@@ -146,10 +146,15 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [replacingKey, setReplacingKey] = useState<string | null>(null)
+  const [searchTarget, setSearchTarget] = useState<Recipe | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [resultPulse, setResultPulse] = useState(false)
   const [cookingProgress, setCookingProgress] = useState<CookingProgress | null>(() => storage.get<CookingProgress | null>('wtet.cooking-progress', null))
   const [cookingOpen, setCookingOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
+  const resultRef = useRef<HTMLDivElement>(null)
   const replacementTimer = useRef<number | null>(null)
+  const feedbackTimer = useRef<number | null>(null)
 
   useEffect(() => storage.set('wtet.preferences', preferences), [preferences])
   useEffect(() => storage.set('wtet.favorites', favorites), [favorites])
@@ -174,31 +179,54 @@ export default function App() {
   }, [])
   useEffect(() => () => {
     if (replacementTimer.current !== null) window.clearTimeout(replacementTimer.current)
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
   }, [])
   useEffect(() => {
-    const timer = window.setTimeout(() => setResults(generateMealPlans(preferences, recentRecipes, 3, catalog)), 180)
+    const timer = window.setTimeout(() => setResults(generateMealPlans(preferences, recentRecipes, 1, catalog, searchTarget ?? undefined)), 180)
     return () => window.clearTimeout(timer)
-  }, [preferences, catalog])
+  }, [preferences, catalog, searchTarget])
   const favoriteResults = useMemo(() => favorites.map((id) => catalog.find((recipe) => recipe.id === id)).filter(Boolean).map((recipe) => ({ recipe: recipe!, score: 100, reasons: [] })), [favorites, catalog])
   const toggleFavorite = (id: string) => setFavorites((x) => x.includes(id) ? x.filter((v) => v !== id) : [...x, id])
+
+  const revealResults = () => {
+    setIsSearching(true)
+    setResultPulse(false)
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+      setResultPulse(true)
+    }))
+    if (feedbackTimer.current !== null) window.clearTimeout(feedbackTimer.current)
+    feedbackTimer.current = window.setTimeout(() => { setIsSearching(false); setResultPulse(false) }, 900)
+  }
 
   const ask = (text = query) => {
     const cleaned = text.trim()
     if (!cleaned) {
-      const plans = generateMealPlans(preferences, recentRecipes, 3, catalog)
+      const plans = generateMealPlans(preferences, recentRecipes, 1, catalog)
+      setSearchTarget(null)
       setResults(plans); setLastQuery(`按当前偏好推荐 · ${preferences.people} 人${preferences.meal === '不限' ? '' : preferences.meal}`)
       setRecentRecipes((old) => [...plans[0].dishes.map((x) => x.recipe.id), ...old].slice(0, 20))
+      revealResults()
       return
     }
     const parsed = parseQuery(cleaned, preferences)
-    const plans = generateMealPlans(parsed, recentRecipes, 3, catalog)
+    const match = findRecipeSearchMatch(cleaned, catalog)
+    const conflict = match ? recipeSearchConflict(match.recipe, parsed) : null
+    const target = match && !conflict ? match.recipe : null
+    const plans = generateMealPlans(parsed, recentRecipes, 1, catalog, target ?? undefined)
     setPreferences(parsed); setLastQuery(cleaned); setQuery('')
+    setSearchTarget(target)
+    if (conflict) setLastQuery(`${conflict}，已为你推荐安全选择`)
+    else if (target) setLastQuery(parsed.people > 1 ? `以「${target.name}」为主的一桌` : `找到「${target.name}」`)
     setResults(plans); setRecentRecipes((old) => [...plans[0].dishes.map((x) => x.recipe.id), ...old].slice(0, 20)); setHistory((x) => [cleaned, ...x.filter((v) => v !== cleaned)].slice(0, 8))
+    revealResults()
   }
   const reroll = () => {
     const currentIds = results.flatMap((plan) => plan.dishes.map((x) => x.recipe.id))
-    const next = generateMealPlans(preferences, [...currentIds, ...recentRecipes], 3, catalog)
+    const recentWithoutTarget = searchTarget ? currentIds.filter((id) => id !== searchTarget.id) : currentIds
+    const next = generateMealPlans(preferences, [...recentWithoutTarget, ...recentRecipes], 1, catalog, searchTarget ?? undefined)
     setResults(next); setRecentRecipes((old) => [...next[0].dishes.map((x) => x.recipe.id), ...old].slice(0, 20))
+    revealResults()
   }
   const replaceDish = (plan: MealPlan, recipeId: string) => {
     const key = `${plan.id}:${recipeId}`
@@ -233,10 +261,10 @@ export default function App() {
       <section className="content">
         {showSaved ? <div className="saved-view"><span className="eyebrow">我的收藏</span><h1>留住想吃的味道</h1>{favoriteResults.length ? <div className="card-grid">{favoriteResults.map((item) => <RecipeCard key={item.recipe.id} item={item} people={preferences.people} favorite onFavorite={() => toggleFavorite(item.recipe.id)} onOpen={() => setSelected(item.recipe)} compact />)}</div> : <div className="empty"><Bookmark /><h3>还没有收藏</h3><p>遇到喜欢的菜谱，点一下书签就能留在这里。</p></div>}</div> : <>
           <div className="hero"><span className="eyebrow"><Sparkles size={14} /> 今日灵感</span><h1>今天，想吃点<br/><em>什么好的？</em></h1><p>告诉我人数、时间或手边食材，剩下的交给我。</p></div>
-          <div className="ask-box"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask()} placeholder="例如：帮我推荐一人份的快速午餐" /><button onClick={() => ask()}>帮我想想 <ArrowRight /></button></div>
+          <div className="ask-box"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ask() } }} placeholder="例如：糖醋排骨，或两个人的清淡晚餐" /><button onClick={() => ask()} disabled={isSearching}>{isSearching ? '正在推荐…' : '帮我想想'} {!isSearching && <ArrowRight />}</button></div>
           <div className="starters">{starters.map((x) => <button key={x} onClick={() => ask(x)}>{x}</button>)}</div>
-          <div className="result-heading"><div><span className="eyebrow">为你推荐</span><h2>{lastQuery}</h2></div><button className="reroll" onClick={reroll}><RotateCcw /> 换一批</button></div>
-          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} replacingKey={replacingKey} cookingProgress={cookingProgress} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(results[0])} onCook={() => openCooking(results[0])} /><div className="plan-alternatives">{results.slice(1).map((plan, index) => <PlanCard key={`${plan.id}-${index}`} plan={plan} people={preferences.people} favorites={favorites} replacingKey={replacingKey} cookingProgress={cookingProgress} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(plan)} onCook={() => openCooking(plan)} compact />)}</div></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}
+          <div ref={resultRef} className={resultPulse ? 'result-area result-feedback' : 'result-area'}><div className="result-heading"><div><span className="eyebrow">为你推荐</span><h2>{lastQuery}</h2></div><button className="reroll" onClick={reroll}><RotateCcw /> 换一换</button></div>
+          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} replacingKey={replacingKey} cookingProgress={cookingProgress} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(results[0])} onCook={() => openCooking(results[0])} /></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}</div>
         </>}
       </section>
     </main>
