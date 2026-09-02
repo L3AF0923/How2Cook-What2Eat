@@ -105,7 +105,7 @@ export function formatIngredientAmount(ingredient: Ingredient, baseServings: num
 export function dishProfile(recipe: Recipe): { role: DishRole; protein: string; method: string } {
   const text = [recipe.name, recipe.category, ...recipe.tags, ...recipe.ingredients.map((x) => x.name)].join('|')
   const role: DishRole = recipe.category === '主食' || recipe.category === '早餐' ? '主食' : recipe.category === '汤' ? '汤' : ['荤菜', '水产'].includes(recipe.category) ? '荤菜' : '素菜'
-  const protein = /虾|蟹|蛏|贝/.test(text) ? '虾蟹' : /鱼|鲈/.test(text) ? '鱼' : /鸡翅|鸡腿|鸡肉|鸡丁/.test(text) ? '鸡' : /排骨|猪|五花/.test(text) ? '猪' : /牛/.test(text) ? '牛' : /羊/.test(text) ? '羊' : /鸡蛋|蛋花|炒蛋|蛋炒/.test(text) ? '蛋' : /豆腐/.test(text) ? '豆制品' : role === '素菜' ? '蔬菜' : '其他'
+  const protein = /虾|蟹|蛏|贝/.test(text) ? '虾蟹' : /鱼|鲈/.test(text) ? '鱼' : /鸡翅|鸡腿|鸡肉|鸡丁/.test(text) ? '鸡' : /排骨|猪|五花/.test(text) ? '猪' : /牛蛙|蛙肉/.test(text) ? '蛙' : /牛肉|牛腩|牛柳|牛排|牛肋|牛骨|肥牛/.test(text) ? '牛' : /羊/.test(text) ? '羊' : /鸡蛋|蛋花|炒蛋|蛋炒/.test(text) ? '蛋' : /豆腐/.test(text) ? '豆制品' : role === '素菜' ? '蔬菜' : '其他'
   const method = /蒸|羹/.test(text) ? '蒸' : /炖|焖/.test(text) ? '炖' : /凉拌/.test(text) ? '凉拌' : /煮|汤|面/.test(text) ? '煮' : /煎/.test(text) ? '煎' : '炒'
   return { role, protein, method }
 }

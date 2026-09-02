@@ -58,7 +58,7 @@ function inferTags(name, category, text) {
   else tags.push('不辣')
   if (/鸡/.test(text)) tags.push('鸡肉')
   if (/猪|排骨|五花|肉丝|肉末/.test(text)) tags.push('猪肉')
-  if (/牛/.test(text)) tags.push('牛肉')
+  if (/牛肉|牛腩|牛柳|牛排|牛肋|牛骨|肥牛/.test(text)) tags.push('牛肉')
   if (/羊/.test(text)) tags.push('羊肉')
   if (/虾|蟹|蛏|贝/.test(text)) tags.push('虾蟹')
   if (/鱼|鳝/.test(text)) tags.push('鱼')
