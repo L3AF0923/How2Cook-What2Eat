@@ -159,6 +159,31 @@ function planShape(p: Preferences) {
   return { staples: 1, proteins: p.vegetarian ? 0 : 4, vegetables: p.vegetarian ? 7 : 3, soups: 1 }
 }
 
+function createMealPlan(p: Preferences, chosen: Recipe[], recent: string[]): MealPlan {
+  const dishes: PlannedDish[] = chosen.map((recipe) => {
+    const profile = dishProfile(recipe)
+    return { recipe, score: baseScore(recipe, p, recent), reasons: [], ...profile }
+  })
+  const dishCount = dishes.filter((x) => x.role !== '汤').length
+  const soupCount = dishes.filter((x) => x.role === '汤').length
+  const proteinNames = [...new Set(dishes.map((x) => x.protein).filter((x) => !['蔬菜', '其他'].includes(x)))]
+  const reasons = [
+    ...(p.pantry.length ? [`优先用上${p.pantry.filter((item) => dishes.some((dish) => containsAny(dish.recipe, [item]))).join('、') || '现有食材'}`] : []),
+    proteinNames.length > 1 ? `${proteinNames.join('、')}等蛋白质来源不重复` : proteinNames.length ? `包含${proteinNames[0]}类蛋白质` : '以蔬菜和主食为主',
+    dishes.some((x) => x.role === '素菜') ? '搭配蔬菜，减少整桌油腻感' : '适合一人快速完成',
+    `${new Set(dishes.map((x) => x.method)).size} 种烹饪方式交替搭配`
+  ]
+  const longFirst = [...dishes].sort((a, b) => b.recipe.minutes - a.recipe.minutes)
+  const cookingOrder = longFirst.map((dish, index) => index === 0 ? `先准备${dish.recipe.name}，它的耗时最长（约 ${dish.recipe.minutes} 分钟）` : dish.method === '凉拌' ? `${dish.recipe.name}可提前完成并静置入味` : `${dish.recipe.name}安排在${index === longFirst.length - 1 ? '最后制作，趁热上桌' : '前一道烹饪期间备料'}`)
+  return {
+    id: dishes.map((x) => x.recipe.id).join('--'),
+    title: p.menuMode === 'custom' ? `${p.people} 人餐 · ${[`${p.meatCount} 荤`, `${p.vegetableCount} 素`, p.soupCount ? `${p.soupCount} 汤` : '', p.stapleCount ? `${p.stapleCount} 主食` : ''].filter(Boolean).join(' · ')}` : p.people === 1 ? (dishes.length > 1 ? '一人食 · 一主一配' : '一人食 · 快手一餐') : `${p.people} 人餐 · ${dishCount} 菜${soupCount ? `一汤` : ''}`,
+    summary: dishes.map((x) => x.recipe.name).join('、'), dishes,
+    estimatedMinutes: Math.max(...dishes.map((x) => x.recipe.minutes)) + Math.max(0, dishes.length - 2) * 8,
+    reasons, cookingOrder
+  }
+}
+
 export function generateMealPlan(p: Preferences, recent: string[] = [], seedExcluded: string[] = [], catalog: Recipe[] = builtInRecipes): MealPlan {
   const eligible = catalog.filter((recipe) => isAllowed(recipe, p) && !seedExcluded.includes(recipe.id))
   const shape = planShape(p)
@@ -203,28 +228,28 @@ export function generateMealPlan(p: Preferences, recent: string[] = [], seedExcl
     const fallback = eligible[0] || catalog[0] || builtInRecipes[0]
     chosen.push(fallback)
   }
-  const dishes: PlannedDish[] = chosen.map((recipe) => {
-    const profile = dishProfile(recipe)
-    return { recipe, score: baseScore(recipe, p, recent), reasons: [], ...profile }
+  return createMealPlan(p, chosen, recent)
+}
+
+export function replaceDishInMealPlan(plan: MealPlan, recipeId: string, p: Preferences, recent: string[] = [], catalog: Recipe[] = builtInRecipes): MealPlan {
+  const currentIndex = plan.dishes.findIndex((dish) => dish.recipe.id === recipeId)
+  if (currentIndex < 0) return plan
+  const currentDish = plan.dishes[currentIndex]
+  const otherRecipes = plan.dishes.filter((_, index) => index !== currentIndex).map((dish) => dish.recipe)
+  const excludedIds = new Set([...plan.dishes.map((dish) => dish.recipe.id), recipeId])
+  const strictCandidates = catalog.filter((recipe) => {
+    if (excludedIds.has(recipe.id) || !isAllowed(recipe, p)) return false
+    if (dishProfile(recipe).role !== currentDish.role) return false
+    if (recipe.minutes > p.maxMinutes) return false
+    if (p.difficulty !== '不限' && recipe.difficulty !== p.difficulty) return false
+    return true
   })
-  const dishCount = dishes.filter((x) => x.role !== '汤').length
-  const soupCount = dishes.filter((x) => x.role === '汤').length
-  const proteinNames = [...new Set(dishes.map((x) => x.protein).filter((x) => !['蔬菜', '其他'].includes(x)))]
-  const reasons = [
-    ...(p.pantry.length ? [`优先用上${p.pantry.filter((item) => dishes.some((dish) => containsAny(dish.recipe, [item]))).join('、') || '现有食材'}`] : []),
-    proteinNames.length > 1 ? `${proteinNames.join('、')}等蛋白质来源不重复` : proteinNames.length ? `包含${proteinNames[0]}类蛋白质` : '以蔬菜和主食为主',
-    dishes.some((x) => x.role === '素菜') ? '搭配蔬菜，减少整桌油腻感' : '适合一人快速完成',
-    `${new Set(dishes.map((x) => x.method)).size} 种烹饪方式交替搭配`
-  ]
-  const longFirst = [...dishes].sort((a, b) => b.recipe.minutes - a.recipe.minutes)
-  const cookingOrder = longFirst.map((dish, index) => index === 0 ? `先准备${dish.recipe.name}，它的耗时最长（约 ${dish.recipe.minutes} 分钟）` : dish.method === '凉拌' ? `${dish.recipe.name}可提前完成并静置入味` : `${dish.recipe.name}安排在${index === longFirst.length - 1 ? '最后制作，趁热上桌' : '前一道烹饪期间备料'}`)
-  return {
-    id: dishes.map((x) => x.recipe.id).join('--'),
-    title: p.menuMode === 'custom' ? `${p.people} 人餐 · ${[`${p.meatCount} 荤`, `${p.vegetableCount} 素`, p.soupCount ? `${p.soupCount} 汤` : '', p.stapleCount ? `${p.stapleCount} 主食` : ''].filter(Boolean).join(' · ')}` : p.people === 1 ? (dishes.length > 1 ? '一人食 · 一主一配' : '一人食 · 快手一餐') : `${p.people} 人餐 · ${dishCount} 菜${soupCount ? `一汤` : ''}`,
-    summary: dishes.map((x) => x.recipe.name).join('、'), dishes,
-    estimatedMinutes: Math.max(...dishes.map((x) => x.recipe.minutes)) + Math.max(0, dishes.length - 2) * 8,
-    reasons, cookingOrder
-  }
+  const usedProteins = new Set(otherRecipes.map((recipe) => dishProfile(recipe).protein))
+  const usedMethods = new Set(otherRecipes.map((recipe) => dishProfile(recipe).method))
+  const replacement = weightedPick(strictCandidates, p, [recipeId, ...recent], usedProteins, usedMethods)
+  if (!replacement) return plan
+  const nextRecipes = plan.dishes.map((dish, index) => index === currentIndex ? replacement : dish.recipe)
+  return createMealPlan(p, nextRecipes, [recipeId, ...recent])
 }
 
 export function generateMealPlans(p: Preferences, recent: string[] = [], count = 3, catalog: Recipe[] = builtInRecipes): MealPlan[] {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'how2cook-what2eat-v0.3.1'
+const CACHE_NAME = 'how2cook-what2eat-v0.4'
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png']
 
 self.addEventListener('install', (event) => {

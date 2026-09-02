@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPreferences, dishProfile, formatAmount, formatIngredientAmount, generateMealPlan, generateMealPlans, parseQuery, recommend } from './recommender'
+import { defaultPreferences, dishProfile, formatAmount, formatIngredientAmount, generateMealPlan, generateMealPlans, parseQuery, recommend, replaceDishInMealPlan } from './recommender'
 import { recipes } from '../data/recipes'
 import { builtInRecipes } from '../data/all-recipes'
+import type { MealPlan, Recipe } from '../types'
 
 describe('query parser', () => {
   it('parses people, meal, time and taste', () => {
@@ -77,5 +78,30 @@ describe('recommender', () => {
     expect(recipeText).toContain('虾')
     expect(plan.dishes.some((dish) => /牛/.test(dish.recipe.name))).toBe(true)
     expect(plan.dishes.some((dish) => /虾/.test(dish.recipe.name))).toBe(true)
+  })
+  it('replaces only one dish with the same role and strict active filters', () => {
+    const oldMeat = recipes.find((recipe) => recipe.id === 'cola-wings')!
+    const vegetable = recipes.find((recipe) => recipe.id === 'tomato-eggs')!
+    const allowedReplacement: Recipe = { ...oldMeat, id: 'quick-chicken', name: '快手鸡丁', minutes: 20, difficulty: '新手', ingredients: [{ name: '鸡肉', amount: 250, unit: 'g' }] }
+    const tooSlow: Recipe = { ...allowedReplacement, id: 'slow-chicken', name: '慢炖鸡', minutes: 80 }
+    const wrongRole: Recipe = { ...vegetable, id: 'another-vegetable', name: '另一道素菜', minutes: 10, difficulty: '新手' }
+    const allergen: Recipe = { ...allowedReplacement, id: 'shrimp-chicken', name: '虾仁鸡丁', ingredients: [{ name: '虾', amount: 100, unit: 'g' }] }
+    const oldProfile = dishProfile(oldMeat)
+    const vegetableProfile = dishProfile(vegetable)
+    const plan: MealPlan = {
+      id: 'old-plan', title: '测试菜单', summary: `${oldMeat.name}、${vegetable.name}`, estimatedMinutes: 35, reasons: [], cookingOrder: [],
+      dishes: [
+        { recipe: oldMeat, score: 1, reasons: [], ...oldProfile },
+        { recipe: vegetable, score: 1, reasons: [], ...vegetableProfile }
+      ]
+    }
+    const preferences = { ...defaultPreferences, people: 2, meal: '晚餐' as const, maxMinutes: 30, difficulty: '新手' as const, allergies: ['虾'] }
+    const next = replaceDishInMealPlan(plan, oldMeat.id, preferences, [], [oldMeat, vegetable, allowedReplacement, tooSlow, wrongRole, allergen])
+    expect(next.dishes[0].recipe.id).toBe(allowedReplacement.id)
+    expect(next.dishes[0].role).toBe(oldProfile.role)
+    expect(next.dishes[1].recipe.id).toBe(vegetable.id)
+    expect(new Set(next.dishes.map((dish) => dish.recipe.id)).size).toBe(next.dishes.length)
+    expect(next.summary).toContain(allowedReplacement.name)
+    expect(next.cookingOrder).not.toHaveLength(0)
   })
 })

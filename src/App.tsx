@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Bookmark, BookmarkCheck, ChefHat, ChevronDown, Clock3, ExternalLink, Flame, Heart, History, Minus, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowRight, Bookmark, BookmarkCheck, Check, ChefHat, ChevronDown, ClipboardCopy, Clock3, ExternalLink, Flame, Heart, History, Minus, Plus, RotateCcw, Search, Settings, ShoppingBasket, Sparkles, Users, X } from 'lucide-react'
 import type { Difficulty, Meal, MealPlan, Preferences, Recipe, Recommendation } from './types'
-import { defaultPreferences, formatIngredientAmount, generateMealPlans, parseQuery } from './lib/recommender'
+import { defaultPreferences, formatIngredientAmount, generateMealPlans, parseQuery, replaceDishInMealPlan } from './lib/recommender'
+import { buildShoppingList, shoppingListToText } from './lib/shopping'
 import { builtInRecipes } from './data/all-recipes'
 import RecipeAdmin from './components/RecipeAdmin'
 
@@ -11,6 +12,21 @@ const storage = {
   set(key: string, value: unknown) { localStorage.setItem(key, JSON.stringify(value)) }
 }
 const loadPreferences = (): Preferences => ({ ...defaultPreferences, ...storage.get<Partial<Preferences>>('wtet.preferences', {}) })
+
+async function copyPlainText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  textarea.remove()
+}
 
 function Filters({ value, onChange }: { value: Preferences; onChange: (next: Preferences) => void }) {
   const set = <K extends keyof Preferences>(key: K, next: Preferences[K]) => onChange({ ...value, [key]: next })
@@ -61,32 +77,46 @@ function RecipeModal({ recipe, people, onClose }: { recipe: Recipe; people: numb
   </div></div>
 }
 
-function PlanCard({ plan, people, favorites, onFavorite, onRecipe, onPlan, compact = false }: { plan: MealPlan; people: number; favorites: string[]; onFavorite: (id: string) => void; onRecipe: (recipe: Recipe) => void; onPlan: () => void; compact?: boolean }) {
+function PlanCard({ plan, people, favorites, replacingKey, onFavorite, onRecipe, onReplace, onPlan, compact = false }: { plan: MealPlan; people: number; favorites: string[]; replacingKey: string | null; onFavorite: (id: string) => void; onRecipe: (recipe: Recipe) => void; onReplace: (plan: MealPlan, recipeId: string) => void; onPlan: () => void; compact?: boolean }) {
   return <article className={compact ? 'plan-card compact' : 'plan-card'}>
     <div className="plan-head"><div><span className="eyebrow">{compact ? '另一桌选择' : '今日整桌推荐'}</span><h3>{plan.title}</h3></div><span className="plan-time"><Clock3 /> 约 {plan.estimatedMinutes} 分钟</span></div>
     <p className="plan-summary">{plan.summary}</p>
     {!compact && <div className="balance-notes">{plan.reasons.map((x) => <span key={x}><Sparkles />{x}</span>)}</div>}
-    <div className="dish-list">{plan.dishes.map((dish) => <div className="dish-row" key={dish.recipe.id}>
+    <div className="dish-list">{plan.dishes.map((dish) => { const replacing = replacingKey === `${plan.id}:${dish.recipe.id}`; return <div className={replacing ? 'dish-row replacing' : 'dish-row'} key={dish.recipe.id}>
       <button className="dish-main" onClick={() => onRecipe(dish.recipe)}><span className={`role role-${dish.role}`}>{dish.role}</span><span><b>{dish.recipe.name}</b><small>{dish.protein} · {dish.method} · {dish.recipe.minutes} 分钟</small></span></button>
-      <button className="favorite" onClick={() => onFavorite(dish.recipe.id)} title="收藏">{favorites.includes(dish.recipe.id) ? <BookmarkCheck /> : <Bookmark />}</button>
-    </div>)}</div>
+      <div className="dish-actions"><button className="replace-dish" onClick={() => onReplace(plan, dish.recipe.id)} disabled={replacing} aria-label={`更换${dish.recipe.name}`} title="换一道"><RotateCcw /> <span>{replacing ? '更换中' : '换一道'}</span></button><button className="favorite" onClick={() => onFavorite(dish.recipe.id)} title="收藏">{favorites.includes(dish.recipe.id) ? <BookmarkCheck /> : <Bookmark />}</button></div>
+    </div> })}</div>
     <button className="plan-detail" onClick={onPlan}><ShoppingBasket /> 查看食材清单与下厨顺序 <ArrowRight /></button>
   </article>
 }
 
 function PlanModal({ plan, people, onRecipe, onClose }: { plan: MealPlan; people: number; onRecipe: (recipe: Recipe) => void; onClose: () => void }) {
-  const shopping = new Map<string, { name: string; amount: number; unit: string; optional: boolean; originalAmount?: string }>()
-  plan.dishes.forEach(({ recipe }) => recipe.ingredients.forEach((item) => {
-    const isOriginal = item.scalable === false || !item.amount || !item.unit
-    const key = isOriginal ? `${item.name}-原始-${item.originalAmount}` : `${item.name}-${item.unit}`
-    const scaled = item.amount * people / recipe.servings
-    const old = shopping.get(key)
-    shopping.set(key, { name: item.name, amount: isOriginal ? 0 : (old?.amount || 0) + scaled, unit: item.unit, optional: Boolean(item.optional && (old?.optional ?? true)), originalAmount: isOriginal ? item.originalAmount || '适量' : undefined })
-  }))
+  const shopping = useMemo(() => buildShoppingList(plan, people), [plan, people])
+  const storageKey = `wtet.shopping.${plan.id}`
+  const [purchased, setPurchased] = useState<string[]>(() => storage.get(storageKey, []))
+  const [copyFeedback, setCopyFeedback] = useState('')
+  const purchasedSet = useMemo(() => new Set(purchased), [purchased])
+  useEffect(() => storage.set(storageKey, purchased), [storageKey, purchased])
+  const togglePurchased = (id: string) => setPurchased((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const copyShoppingList = async () => {
+    const text = shoppingListToText(shopping, purchasedSet)
+    if (!text) {
+      setCopyFeedback('已全部购买')
+      window.setTimeout(() => setCopyFeedback(''), 1800)
+      return
+    }
+    try {
+      await copyPlainText(text)
+      setCopyFeedback('已复制')
+    } catch {
+      setCopyFeedback('复制失败')
+    }
+    window.setTimeout(() => setCopyFeedback(''), 1800)
+  }
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="modal plan-modal">
     <button className="modal-close" onClick={onClose}><X /></button>
     <div className="modal-hero"><span className="eyebrow">整套餐单</span><h2>{plan.title}</h2><p>{plan.summary}</p><div className="meta"><span><Clock3 /> 约 {plan.estimatedMinutes} 分钟</span><span><Users /> {people} 人</span><span><ChefHat /> {plan.dishes.length} 个菜品</span></div></div>
-    <section><div className="section-title"><ShoppingBasket /><div><span>本桌所需</span><h3>食材清单</h3></div></div><div className="ingredient-list">{[...shopping.values()].map((x) => <div key={`${x.name}-${x.unit}-${x.originalAmount || ''}`}><span>{x.name}{x.optional && <em>可选</em>}</span><b>{x.originalAmount || (x.unit === '个' || x.unit === '根' || x.unit === '瓣' ? `${Math.max(1, Math.round(x.amount * 2) / 2)}${x.unit}` : `${x.amount < 10 ? Math.round(x.amount * 10) / 10 : Math.round(x.amount)}${x.unit}`)}</b></div>)}</div><p className="scale-note">同单位的明确用量已合并；区间、适量及备注保留原菜谱写法。</p></section>
+    <section><div className="shopping-heading"><div className="section-title"><ShoppingBasket /><div><span>本桌所需</span><h3>食材清单</h3></div></div><button className="copy-shopping" onClick={copyShoppingList}>{copyFeedback === '已复制' ? <Check /> : <ClipboardCopy />} {copyFeedback || '复制购物清单'}</button></div><div className="shopping-list">{shopping.map((item) => <label className={purchasedSet.has(item.id) ? 'shopping-item purchased' : 'shopping-item'} key={item.id}><input type="checkbox" checked={purchasedSet.has(item.id)} onChange={() => togglePurchased(item.id)} /><span>{item.name}{item.optional && <em>可选</em>}</span><b>{item.amount}</b></label>)}</div><span className="copy-status" role="status" aria-live="polite">{copyFeedback}</span><p className="scale-note">同单位的明确用量已合并；区间、适量及备注保留原菜谱写法。勾选已购买的食材后，复制时会自动忽略它们。</p></section>
     <section><div className="section-title"><Clock3 /><div><span>少忙乱，更快上桌</span><h3>建议下厨顺序</h3></div></div><ol className="steps">{plan.cookingOrder.map((x, i) => <li key={x}><b>{String(i + 1).padStart(2, '0')}</b><p>{x}</p></li>)}</ol></section>
     <section><div className="section-title"><ChefHat /><div><span>逐道查看</span><h3>本桌菜单</h3></div></div><div className="modal-dishes">{plan.dishes.map((dish) => <button key={dish.recipe.id} onClick={() => onRecipe(dish.recipe)}><span className={`role role-${dish.role}`}>{dish.role}</span><b>{dish.recipe.name}</b><ArrowRight /></button>)}</div></section>
   </div></div>
@@ -111,6 +141,10 @@ export default function App() {
   const [showSaved, setShowSaved] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [replacingKey, setReplacingKey] = useState<string | null>(null)
+  const historyRef = useRef<HTMLDivElement>(null)
+  const replacementTimer = useRef<number | null>(null)
 
   useEffect(() => storage.set('wtet.preferences', preferences), [preferences])
   useEffect(() => storage.set('wtet.favorites', favorites), [favorites])
@@ -118,6 +152,23 @@ export default function App() {
   useEffect(() => storage.set('wtet.recent-recipes', recentRecipes), [recentRecipes])
   useEffect(() => storage.set('wtet.recipe-overrides', recipeOverrides), [recipeOverrides])
   useEffect(() => storage.set('wtet.deleted-recipes', deletedRecipes), [deletedRecipes])
+  useEffect(() => {
+    const closeHistory = (event: PointerEvent) => {
+      if (historyRef.current && !historyRef.current.contains(event.target as Node)) setHistoryOpen(false)
+    }
+    const closeHistoryOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHistoryOpen(false)
+    }
+    document.addEventListener('pointerdown', closeHistory)
+    document.addEventListener('keydown', closeHistoryOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeHistory)
+      document.removeEventListener('keydown', closeHistoryOnEscape)
+    }
+  }, [])
+  useEffect(() => () => {
+    if (replacementTimer.current !== null) window.clearTimeout(replacementTimer.current)
+  }, [])
   useEffect(() => {
     const timer = window.setTimeout(() => setResults(generateMealPlans(preferences, recentRecipes, 3, catalog)), 180)
     return () => window.clearTimeout(timer)
@@ -143,9 +194,24 @@ export default function App() {
     const next = generateMealPlans(preferences, [...currentIds, ...recentRecipes], 3, catalog)
     setResults(next); setRecentRecipes((old) => [...next[0].dishes.map((x) => x.recipe.id), ...old].slice(0, 20))
   }
+  const replaceDish = (plan: MealPlan, recipeId: string) => {
+    const key = `${plan.id}:${recipeId}`
+    setReplacingKey(key)
+    if (replacementTimer.current !== null) window.clearTimeout(replacementTimer.current)
+    replacementTimer.current = window.setTimeout(() => {
+      const nextPlan = replaceDishInMealPlan(plan, recipeId, preferences, recentRecipes, catalog)
+      setResults((current) => current.map((item) => item === plan ? nextPlan : item))
+      if (nextPlan !== plan) {
+        const nextId = nextPlan.dishes.find((dish) => !plan.dishes.some((oldDish) => oldDish.recipe.id === dish.recipe.id))?.recipe.id
+        if (nextId) setRecentRecipes((current) => [nextId, recipeId, ...current].slice(0, 20))
+      }
+      setReplacingKey(null)
+      replacementTimer.current = null
+    }, 220)
+  }
 
   return <div className="app-shell">
-    <header><a className="brand" href="#"><span><ChefHat /></span><div><b>今天吃什么</b><small>认真解决每一顿</small></div></a><nav><button onClick={() => setAdminOpen(true)}><Settings size={18} /> 管理</button><button onClick={() => setShowSaved(!showSaved)} className={showSaved ? 'active' : ''}><Bookmark size={18} /> 收藏 <i>{favorites.length}</i></button><button className="history-button"><History size={18} /> 历史<div className="history-popover">{history.length ? history.map((x) => <span key={x} onClick={() => { setQuery(x); ask(x) }}>{x}</span>) : <em>还没有搜索记录</em>}</div></button></nav></header>
+    <header><a className="brand" href="#"><span><ChefHat /></span><div><b>今天吃什么</b><small>认真解决每一顿</small></div></a><nav><button onClick={() => setAdminOpen(true)}><Settings size={18} /> 管理</button><button onClick={() => setShowSaved(!showSaved)} className={showSaved ? 'active' : ''}><Bookmark size={18} /> 收藏 <i>{favorites.length}</i></button><div className={historyOpen ? 'history-menu open' : 'history-menu'} ref={historyRef}><button className="history-button" onClick={() => setHistoryOpen((open) => !open)} aria-expanded={historyOpen} aria-controls="history-popover" aria-haspopup="menu"><History size={18} /> 历史</button><div className="history-popover" id="history-popover" role="menu">{history.length ? history.map((x) => <button role="menuitem" key={x} onClick={() => { setQuery(x); ask(x); setHistoryOpen(false) }}>{x}</button>) : <em>还没有搜索记录</em>}</div></div></nav></header>
     <main>
       <button className="mobile-filter" onClick={() => setFiltersOpen(!filtersOpen)}>调整用餐偏好 <ChevronDown /></button>
       <div className={filtersOpen ? 'filter-wrap open' : 'filter-wrap'}><Filters value={preferences} onChange={setPreferences} /></div>
@@ -155,7 +221,7 @@ export default function App() {
           <div className="ask-box"><Search /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask()} placeholder="例如：帮我推荐一人份的快速午餐" /><button onClick={() => ask()}>帮我想想 <ArrowRight /></button></div>
           <div className="starters">{starters.map((x) => <button key={x} onClick={() => ask(x)}>{x}</button>)}</div>
           <div className="result-heading"><div><span className="eyebrow">为你推荐</span><h2>{lastQuery}</h2></div><button className="reroll" onClick={reroll}><RotateCcw /> 换一批</button></div>
-          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} onFavorite={toggleFavorite} onRecipe={setSelected} onPlan={() => setSelectedPlan(results[0])} /><div className="plan-alternatives">{results.slice(1).map((plan, index) => <PlanCard key={`${plan.id}-${index}`} plan={plan} people={preferences.people} favorites={favorites} onFavorite={toggleFavorite} onRecipe={setSelected} onPlan={() => setSelectedPlan(plan)} compact />)}</div></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}
+          {results.length ? <div className="plan-results"><PlanCard plan={results[0]} people={preferences.people} favorites={favorites} replacingKey={replacingKey} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(results[0])} /><div className="plan-alternatives">{results.slice(1).map((plan, index) => <PlanCard key={`${plan.id}-${index}`} plan={plan} people={preferences.people} favorites={favorites} replacingKey={replacingKey} onFavorite={toggleFavorite} onRecipe={setSelected} onReplace={replaceDish} onPlan={() => setSelectedPlan(plan)} compact />)}</div></div> : <div className="empty"><Search /><h3>暂时没有完全匹配的菜谱</h3><p>试着放宽时间、难度或食材条件。</p></div>}
         </>}
       </section>
     </main>

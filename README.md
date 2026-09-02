@@ -30,18 +30,19 @@ npm test
 - 按人数生成整套餐单：一人食 1～2 道，7～8 人为六菜一汤
 - 根据鱼、虾、鸡、猪、牛、蔬菜、汤和烹饪方式进行搭配
 - 加权随机抽样、近期推荐冷却和换一批去重
+- 支持单独更换整桌菜单中的某一道菜，并保持菜品类型及当前筛选条件
 - 按人数换算食材用量
-- 合并整桌食材清单（包含调料用量），并给出建议下厨顺序
+- 合并整桌食材清单（包含调料用量），支持勾选购买进度和一键复制，并给出建议下厨顺序
 - 一人食既可推荐快手主食，也可按人数换算辣椒炒肉、鸡翅、牛肉等家常菜
 - 完整食材、步骤、提示与原始菜谱链接
-- 收藏、历史和偏好保存在本机浏览器
+- 收藏、点击式历史记录、购物进度和偏好保存在本机浏览器
 - 响应式手机与桌面布局
 - 可安装到 Android、iPhone/iPad 和桌面的 PWA
 - 首次在线打开后缓存应用文件，可离线启动并使用内置菜谱
 
 ## 移动端网页版（PWA）
 
-V0.3 新增移动端 PWA。仓库已包含 PWA 清单、应用图标、Service Worker 和 GitHub Pages 自动部署流程。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages** 中将 Source 设置为 **GitHub Actions**，工作流会生成可供手机访问的 HTTPS 地址。
+V0.4 支持移动端 PWA。仓库已包含 PWA 清单、应用图标、Service Worker 和 GitHub Pages 自动部署流程。推送到 `main` 后，在 GitHub 仓库的 **Settings → Pages** 中将 Source 设置为 **GitHub Actions**，工作流会生成可供手机访问的 HTTPS 地址。
 
 手机打开部署地址后：
 
@@ -60,10 +61,10 @@ HowToCook 使用 Unlicense。食物过敏筛选只能作为辅助，实际食用
 
 ## Windows 桌面版
 
-V0.2 提供两种 64 位 Windows 程序：
+V0.4 可构建两种 64 位 Windows 程序：
 
-- `How2Cook&What2Eat_V0.2_Setup_x64.exe`：安装版，可选择安装位置并创建快捷方式。
-- `How2Cook&What2Eat_V0.2_Portable_x64.exe`：便携版，无需安装即可运行。
+- `How2Cook&What2Eat_V0.4_Setup_x64.exe`：安装版，可选择安装位置并创建快捷方式。
+- `How2Cook&What2Eat_V0.4_Portable_x64.exe`：便携版，无需安装即可运行。
 
 应用界面和文件描述使用完整名称 `How2Cook?&What2Eat?`。由于 Windows 文件名不允许包含问号，EXE 文件名省略了 `?`。
 

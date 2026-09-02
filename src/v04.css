@@ -1,0 +1,20 @@
+body {
+  min-width: 0;
+}
+
+@media (max-width: 580px) {
+  .history-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .replace-dish {
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .dish-actions .favorite {
+    width: 44px;
+    height: 44px;
+  }
+}
