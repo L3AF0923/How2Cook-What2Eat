@@ -75,6 +75,10 @@ export function resetCookingTimer(timer: CookingTimerState): CookingTimerState {
   return { ...timer, status: 'paused', targetEndAt: null, remainingMs: timer.durationMs }
 }
 
+export function removeCookingTimer(timers: CookingTimerState[], timerId: string): CookingTimerState[] {
+  return timers.filter((timer) => timer.id !== timerId)
+}
+
 export function formatCountdown(milliseconds: number): string {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
   const hours = Math.floor(totalSeconds / 3600)

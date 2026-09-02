@@ -1,7 +1,7 @@
 import { Check, ChevronLeft, ChevronRight, ChefHat, Clock3, LogOut, Play, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { CookingProgress, CookingTimerState } from '../types'
-import { createCookingTimer, normalizeTimers, parseExplicitDurations, pauseCookingTimer, resetCookingTimer, resumeCookingTimer, timerRemainingMs } from '../lib/cooking'
+import { createCookingTimer, normalizeTimers, parseExplicitDurations, pauseCookingTimer, removeCookingTimer, resetCookingTimer, resumeCookingTimer, timerRemainingMs } from '../lib/cooking'
 import CookingTimer from './CookingTimer'
 
 interface CookingModeProps {
@@ -73,7 +73,7 @@ export default function CookingMode({ progress, onChange, onExit }: CookingModeP
         <div className="cooking-step-heading"><span>当前正在做</span><h1>{recipe.name}</h1><p>步骤 {stepIndex + 1} / {recipe.steps.length}</p></div>
         <div className="cooking-step-text">{step}</div>
         {durations.length > 0 && <div className="quick-timers"><span>当前步骤预计时间</span>{durations.map((duration, index) => <button key={`${duration.label}-${index}`} onClick={() => startTimer(index)}><Play />开始 {duration.label}计时</button>)}</div>}
-        {currentTimers.length > 0 && <div className="current-timers">{currentTimers.map((timer) => <CookingTimer key={timer.id} timer={timer} now={now} onPause={() => updateTimer(timer.id, (item) => pauseCookingTimer(item))} onResume={() => updateTimer(timer.id, (item) => resumeCookingTimer(item))} onReset={() => updateTimer(timer.id, resetCookingTimer)} />)}</div>}
+        {currentTimers.length > 0 && <div className="current-timers">{currentTimers.map((timer) => <CookingTimer key={timer.id} timer={timer} now={now} onPause={() => updateTimer(timer.id, (item) => pauseCookingTimer(item))} onResume={() => updateTimer(timer.id, (item) => resumeCookingTimer(item))} onReset={() => updateTimer(timer.id, resetCookingTimer)} onRemove={() => update({ timers: removeCookingTimer(progress.timers, timer.id) })} />)}</div>}
         <div className="step-navigation"><button onClick={() => moveStep(-1)} disabled={stepIndex === 0}><ChevronLeft />上一步</button>{stepIndex === recipe.steps.length - 1 ? <button className="primary" onClick={finishRecipe}><Check />完成这道菜</button> : <button className="primary" onClick={() => moveStep(1)}>下一步<ChevronRight /></button>}</div>
       </section>
       {activeTimers.length > 0 && <aside className="active-timers"><span>正在计时</span>{activeTimers.map((timer) => {

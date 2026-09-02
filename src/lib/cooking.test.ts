@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCookingProgress, createCookingTimer, formatCountdown, normalizeTimers, parseExplicitDurations, pauseCookingTimer, resetCookingTimer, resumeCookingTimer, timerRemainingMs } from './cooking'
+import { createCookingProgress, createCookingTimer, formatCountdown, normalizeTimers, parseExplicitDurations, pauseCookingTimer, removeCookingTimer, resetCookingTimer, resumeCookingTimer, timerRemainingMs } from './cooking'
 import { dishProfile } from './recommender'
 import { recipes } from '../data/recipes'
 import type { MealPlan } from '../types'
@@ -56,6 +56,11 @@ describe('cooking progress and timers', () => {
     expect(timerRemainingMs(second, 60_000)).toBe(90_000)
     expect(pauseCookingTimer(first, 60_000).status).toBe('paused')
     expect(second.status).toBe('running')
+  })
+  it('removes only the selected timer', () => {
+    const first = createCookingTimer(colaWings.id, 2, { label: '10 分钟', durationMs: 600_000 }, 0, 0)
+    const second = createCookingTimer(tomatoEggs.id, 1, { label: '2 分钟', durationMs: 120_000 }, 0, 1)
+    expect(removeCookingTimer([first, second], first.id)).toEqual([second])
   })
   it('formats short and hour-long countdowns', () => {
     expect(formatCountdown(599_001)).toBe('10:00')
